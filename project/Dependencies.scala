@@ -9,7 +9,7 @@ object Dependencies {
   val kantanCsv: ModuleID = "com.nrinaudo" %% "kantan.csv-generic" % "0.2.1"
   val jsoup: ModuleID = "org.jsoup" % "jsoup" % "1.10.3"
   val hazelcastClient
-    : ModuleID = "com.hazelcast" % "hazelcast-client" % "3.8.6"
+    : ModuleID = "com.hazelcast" % "hazelcast-client" % "3.9"
   val fluentHc: ModuleID = "org.apache.httpcomponents" % "fluent-hc" % "4.5.3"
   val httpClientCache
     : ModuleID = "org.apache.httpcomponents" % "httpclient-cache" % "4.5.3"
@@ -21,9 +21,9 @@ object Dependencies {
   val scalatestPlus
     : ModuleID = "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.2"
   val alpakkaFile
-    : ModuleID = "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.12"
+    : ModuleID = "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.14"
   val seleniumJava
-    : ModuleID = "org.seleniumhq.selenium" % "selenium-java" % "3.5.3"
+    : ModuleID = "org.seleniumhq.selenium" % "selenium-java" % "3.6.0"
   val seleniumHtmlUnit
     : ModuleID = "org.seleniumhq.selenium" % "selenium-htmlunit-driver" % "2.52.0"
 
@@ -35,20 +35,27 @@ object Dependencies {
   val akkaTestkit: ModuleID = akka("testkit")
 
   private def akka(stuff: String) =
-    "com.typesafe.akka" %% s"akka-$stuff" % "2.5.4"
+    "com.typesafe.akka" %% s"akka-$stuff" % "2.5.6"
 
   val akkaStreamTestkit: ModuleID = akka("stream-testkit")
 
   val serverPinger: ModuleID = "com.actionfps" %% "server-pinger" % "5.5.2"
-  val gameParser: ModuleID = "com.actionfps" %% "game-parser" % "5.9.0"
-  val pureGame: ModuleID = "com.actionfps" %% "pure-game" % "5.9.0"
+
+  val jodaTime: ModuleID = "joda-time" % "joda-time" % "2.9.9"
+  val jodaConvert: ModuleID = "org.joda" % "joda-convert" % "1.9.2"
+  val fastparse: ModuleID = "com.lihaoyi" %% "fastparse" % "1.0.0"
 
   val raptureJsonPlay
     : ModuleID = "com.propensive" %% "rapture-json-play" % "2.0.0-M9" exclude ("com.typesafe.play", "play-json")
 
-  val playJson: ModuleID = "com.typesafe.play" %% "play-json" % "2.6.5"
+  val playJson: ModuleID = "com.typesafe.play" %% "play-json" % "2.6.6"
 
   val jwtPlayJson: ModuleID = "com.pauldijou" %% "jwt-play-json" % "0.14.0"
   val jwtPlay: ModuleID = "com.pauldijou" %% "jwt-play" % "0.14.0"
+
+  val macwireMacros
+    : ModuleID = "com.softwaremill.macwire" %% "macros" % "2.3.0"
+  val macwireUtil: ModuleID = "com.softwaremill.macwire" %% "util" % "2.3.0"
+  val macwireProxy: ModuleID = "com.softwaremill.macwire" %% "proxy" % "2.3.0"
 
 }
