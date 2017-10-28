@@ -1,21 +1,27 @@
 import org.openqa.selenium.WebDriver
 import org.scalatest.Inspectors._
 import org.scalatestplus.play._
-import org.scalatestplus.play.guice.GuiceOneServerPerSuite
+
+import scala.util.Try
 
 class IntegrationSpec
     extends PlaySpec
-    with GuiceOneServerPerSuite
+    with BaseOneServerPerSuite
+    with TheApplicationFactory
     with OneBrowserPerTest
     with HtmlUnitFactory {
 
   "Web" must {
     "Load up" in {
+      Try(go to root)
+      Try(go to root)
       go to root
     }
     "Contain some games, events and a clanwar in the index page" in {
       go to root
-      pageTitle mustBe "ActionFPS First Person Shooter"
+      withClue(s"$pageSource") {
+        pageTitle mustBe "ActionFPS First Person Shooter"
+      }
       withClue("Live events") {
         cssSelector("#live-events ol li").findAllElements mustNot be(empty)
       }
