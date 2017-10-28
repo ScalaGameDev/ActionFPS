@@ -2,21 +2,41 @@ package com.actionfps.accumulation
 
 import java.time.YearMonth
 
-import com.actionfps.accumulation.achievements.{AchievementsIterator, HallOfFame}
+import com.actionfps.accumulation.achievements.{
+  AchievementsIterator,
+  HallOfFame
+}
+import com.actionfps.accumulation.enrich.EnrichGame.NickToUserAtTime
 import com.actionfps.accumulation.enrich.EnrichGames
-import com.actionfps.accumulation.user.{FullProfile, User}
+import com.actionfps.accumulation.user.FullProfile
+import com.actionfps.achievements.GameUserEvent
 import com.actionfps.api.GameAchievement
 import com.actionfps.clans.{Clanwars, CompleteClanwar}
 import com.actionfps.gameparser.enrichers._
 import com.actionfps.players.PlayersStats
 import com.actionfps.stats.Clanstats
-
+import com.actionfps.user.User
 
 /**
   * Created by William on 01/01/2016.
   */
 object GameAxisAccumulator {
   def empty: GameAxisAccumulator = new GameAxisAccumulator()
+  def emptyWithUsers(users: List[User],
+                     clans: List[Clan]): GameAxisAccumulator = {
+    GameAxisAccumulator.emptyWithUsers(
+      users = users.map(u => u.id -> u).toMap,
+      clans = clans.map(c => c.id -> c).toMap
+    )
+  }
+  def emptyWithUsers(users: Map[String, User],
+                     clans: Map[String, Clan]): GameAxisAccumulator = {
+    new GameAxisAccumulator()
+      .copy(users = users,
+            clans = clans,
+            nickToUserAtTime =
+              NickToUserAtTime.fromList(users.valuesIterator.toList))
+  }
 }
 
 /**
@@ -28,95 +48,81 @@ object GameAxisAccumulator {
   *
   * Or if a clanwar is completed, it will be attached to the game for better cross linking.
   */
-case class GameAxisAccumulator
-(users: Map[String, User],
- games: Map[String, JsonGame],
- clans: Map[String, Clan],
- clanwars: Clanwars,
- clanstats: Clanstats,
- achievementsIterator: AchievementsIterator,
- hof: HallOfFame,
- playersStats: PlayersStats,
- shiftedPlayersStats: PlayersStats,
- playersStatsOverTime: Map[YearMonth, PlayersStats]) {
-  fi =>
+case class GameAxisAccumulator(
+    users: Map[String, User],
+    games: Map[String, JsonGame],
+    clans: Map[String, Clan],
+    clanwars: Clanwars,
+    clanstats: Clanstats,
+    achievementsIterator: AchievementsIterator,
+    hof: HallOfFame,
+    // todo separate this away as it's not data actually
+    nickToUserAtTime: NickToUserAtTime,
+    playersStats: PlayersStats,
+    shiftedPlayersStats: PlayersStats,
+    playersStatsOverTime: Map[YearMonth, PlayersStats]) { fi =>
 
   /** For Hazelcast caching **/
-  def this() = this(users = Map.empty,
-    games = Map.empty,
-    clans = Map.empty,
-    clanwars = Clanwars.empty,
-    clanstats = Clanstats.empty,
-    achievementsIterator = AchievementsIterator.empty,
-    hof = HallOfFame.empty,
-    playersStats = PlayersStats.empty,
-    shiftedPlayersStats = PlayersStats.empty,
-    playersStatsOverTime = Map.empty
-  )
+  def this() =
+    this(
+      users = Map.empty,
+      games = Map.empty,
+      clans = Map.empty,
+      clanwars = Clanwars.empty,
+      clanstats = Clanstats.empty,
+      achievementsIterator = AchievementsIterator.empty,
+      hof = HallOfFame.empty,
+      nickToUserAtTime = NickToUserAtTime.empty,
+      playersStats = PlayersStats.empty,
+      shiftedPlayersStats = PlayersStats.empty,
+      playersStatsOverTime = Map.empty
+    )
 
   def isEmpty: Boolean = {
     users.isEmpty && games.isEmpty && clans.isEmpty && clanwars.isEmpty && clanstats.isEmpty &&
-      achievementsIterator.isEmpty && hof.isEmpty && playersStats.isEmpty && playersStatsOverTime.isEmpty &&
-      shiftedPlayersStats.isEmpty
+    achievementsIterator.isEmpty && hof.isEmpty && playersStats.isEmpty && playersStatsOverTime.isEmpty &&
+    shiftedPlayersStats.isEmpty
   }
 
-  def updateReference(newUsers: Map[String, User], newClans: Map[String, Clan]): GameAxisAccumulator = {
-    val blank = GameAxisAccumulator(
-      users = newUsers,
-      clans = newClans,
-      games = Map.empty,
-      achievementsIterator = AchievementsIterator.empty,
-      clanwars = Clanwars.empty,
-      clanstats = Clanstats.empty,
-      playersStats = PlayersStats.empty,
-      shiftedPlayersStats = PlayersStats.empty,
-      hof = HallOfFame.empty,
-      playersStatsOverTime = Map.empty
-    )
-    blank.includeGames(games.valuesIterator.toList.sortBy(_.id))
-  }
-
-  def events: List[Map[String, String]] = achievementsIterator.events.take(10)
+  def events: List[GameUserEvent] = achievementsIterator.events.take(10)
 
   def includeGames(list: List[JsonGame]): GameAxisAccumulator = {
     list.foldLeft(this)(_.includeGame(_))
   }
 
+  private val enricher =
+    EnrichGames(nickToUsers = nickToUserAtTime, clans = clans.values.toList)
+
   private def includeGame(jsonGame: JsonGame): GameAxisAccumulator = {
-    val enricher = EnrichGames(users.values.toList, clans.values.toList)
     import enricher.withUsersClass
     var richGame = jsonGame.withoutHosts.withUsers.withClans
-    val (newAchievements, whatsChanged) = achievementsIterator.includeGame(fi.users.values.toList)(richGame)
+    val (updatedAchievements, whatsChanged, newAchievements) =
+      achievementsIterator.includeGame(users)(richGame)
 
-    val nhof = newAchievements.newAchievements(whatsChanged, achievementsIterator).foldLeft(hof) {
-      case (ahof, (user, items)) =>
-        items.foldLeft(ahof) { case (xhof, (game, ach)) => xhof.includeAchievement(user, game, ach) }
-    }
-    PartialFunction.condOpt(newAchievements.events.dropRight(achievementsIterator.events.length)) {
-      case set if set.nonEmpty =>
-        richGame = richGame.copy(
-          achievements = Option {
-            richGame.achievements.toList.flatten ++ set.map(map =>
-              GameAchievement(
-                user = map("user"),
-                text = map("text")
-              ))
-          }.map(_.distinct).filter(_.nonEmpty)
-        )
-    }
-    val ncw = clanwars.includeFlowing(richGame)
-    var newClanwarCompleted: Option[CompleteClanwar] = None
-    val newClanstats = {
-      if (ncw.complete.size == clanwars.complete.size) clanstats
-      else {
-        (ncw.complete -- clanwars.complete).headOption match {
-          case None =>
-            clanstats
-          case Some(completion) =>
-            newClanwarCompleted = Option(completion)
-            clanstats.include(completion)
-        }
+    val newHof = updatedAchievements
+      .newAchievements(whatsChanged, achievementsIterator)
+      .foldLeft(hof) {
+        case (currentHof, (user, items)) =>
+          items.foldLeft(currentHof) {
+            case (deeperCurrentHof, (game, ach)) =>
+              deeperCurrentHof.includeAchievement(user, game, ach)
+          }
       }
+
+    if (newAchievements.nonEmpty) {
+      richGame = richGame.copy(
+        achievements = Some(
+          newAchievements.map(
+            map =>
+              GameAchievement(
+                user = map.userId,
+                text = map.frontEventText
+            ))).filter(_.nonEmpty)
+      )
+    }
+    val (updatedClanwars, newClanwar) = clanwars.includeFlowing(richGame)
+    val newClanstats = {
+      newClanwar.map(clanstats.include).getOrElse(clanstats)
     }
     var newGames = {
       fi.games.updated(
@@ -124,33 +130,42 @@ case class GameAxisAccumulator
         value = richGame
       )
     }
-    newClanwarCompleted.foreach { cw =>
+    newClanwar.foreach { cw =>
       newGames = newGames ++ cw.games
         .flatMap(game => newGames.get(game.id))
-        .map(_.copy(clanwar = Option(cw.id)))
+        .map(_.copy(clanwar = Some(cw.id)))
         .map(g => g.id -> g)
         .toMap
     }
     val newPs = playersStats.AtGame(richGame).includeGame
-    copy(
+    new GameAxisAccumulator(
       games = newGames,
-      achievementsIterator = newAchievements,
-      clanwars = ncw,
-      hof = nhof,
+      achievementsIterator = updatedAchievements,
+      clanwars = updatedClanwars,
+      hof = newHof,
       clanstats = newClanstats,
       playersStats = newPs,
+      nickToUserAtTime = nickToUserAtTime,
       shiftedPlayersStats = newPs.onDisplay(jsonGame.endTime.toInstant),
-      playersStatsOverTime = playersStatsOverTime.updated(YearMonth.from(richGame.startTime), newPs)
+      playersStatsOverTime =
+        playersStatsOverTime.updated(YearMonth.from(richGame.startTime),
+                                     newPs),
+      users = users,
+      clans = clans
     )
   }
 
-  def recentGames(n: Int): List[JsonGame] = games.toList.sortBy(_._1).takeRight(n).reverse.map(_._2)
+  def recentGames(n: Int): List[JsonGame] =
+    games.toList.sortBy(_._1).takeRight(n).reverse.map(_._2)
 
   def getProfileFor(id: String): Option[FullProfile] =
     users.get(id).map { user =>
       val recentGames = games
         .collect { case (_, game) if game.hasUser(user.id) => game }
-        .toList.sortBy(_.id).takeRight(7).reverse
+        .toList
+        .sortBy(_.id)
+        .takeRight(7)
+        .reverse
       val achievements = achievementsIterator.userToState.get(id)
       val rank = shiftedPlayersStats.onlyRanked.players.get(id)
       FullProfile(
@@ -163,9 +178,3 @@ case class GameAxisAccumulator
     }
 
 }
-
-
-
-
-
-

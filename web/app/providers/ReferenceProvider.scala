@@ -1,88 +1,113 @@
 package providers
 
 import java.io.StringReader
-import javax.inject.{Inject, Singleton}
 
 import com.actionfps.accumulation.Clan
-import com.actionfps.accumulation.user.User
-import com.actionfps.reference._
 import play.api.Configuration
-import play.api.cache.CacheApi
+import play.api.cache.AsyncCacheApi
 import play.api.libs.json.Json
 import play.api.libs.ws.WSClient
 
 import scala.async.Async._
 import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future}
+import com.actionfps.formats.json.Formats._
+import com.actionfps.servers.ServerRecord
+import com.actionfps.user.{NicknameRecord, Registration, User}
+import controllers.{
+  ProvidesClanNames,
+  ProvidesServers,
+  ProvidesUsers,
+  ProvidesUsersList
+}
+import lib.ClansProvider
 
 /**
   * Created by William on 01/01/2016.
   *
   * Provides reference data from CSV URLs.
   */
-@Singleton
-class ReferenceProvider @Inject()(configuration: Configuration,
-                                  cacheApi: CacheApi)
-                                 (implicit wSClient: WSClient,
-                                  executionContext: ExecutionContext) {
+final class ReferenceProvider(configuration: Configuration,
+                              cacheApi: AsyncCacheApi)(
+    implicit wSClient: WSClient,
+    executionContext: ExecutionContext)
+    extends ProvidesServers
+    with ProvidesUsers
+    with ClansProvider
+    with ProvidesClanNames
+    with ProvidesUsersList {
 
   import ReferenceProvider._
 
   def unCache(): Unit = {
-    List(ClansKey, ServersKey, RegistrationsKey, NicknamesKey).foreach(cacheApi.remove)
+    List(ClansKey, ServersKey, RegistrationsKey, NicknamesKey, UsersKey)
+      .foreach(cacheApi.remove)
   }
 
   private def fetch(key: String) = async {
-    cacheApi.get[String](key) match {
+    await(cacheApi.get[String](key)) match {
       case Some(value) => value
       case None =>
-        val value = await(wSClient.url(configuration.underlying.getString(s"af.reference.${key}")).get().filter(_.status == 200).map(_.body))
-        cacheApi.set(key, value, Duration.apply("1h"))
+        val url = configuration.underlying.getString(s"af.reference.${key}")
+        val value = await(wSClient.url(url).get()) match {
+          case r if r.status == 200 => r.body
+          case other =>
+            throw new RuntimeException(
+              s"Received unexpected response ${other.status} for ${url}")
+        }
+        await(cacheApi.set(key, value, Duration.apply("1h")))
         value
     }
   }
 
   object Clans {
-    def csv: Future[String] = fetch(ClansKey)
+    private def csv: Future[String] = fetch(ClansKey)
 
     def clans: Future[List[Clan]] = csv.map { bdy =>
-      val sr = new StringReader(bdy)
-      try ClanRecord.parseRecords(sr).map(Clan.fromClanRecord)
-      finally sr.close()
+      Json.parse(bdy).validate[List[Clan]].map(_.filter(_.valid)).getOrElse {
+        throw new RuntimeException(s"Failed to parse JSON from body: ${bdy}")
+      }
     }
   }
 
   object Servers {
-    def raw: Future[String] = fetch(ServersKey)
+    private def raw: Future[String] = fetch(ServersKey)
 
     def servers: Future[List[ServerRecord]] = raw.map { bdy =>
-      val sr = new StringReader(bdy)
-      try ServerRecord.parseRecords(sr)
-      finally sr.close()
+      Json.parse(bdy).validate[List[ServerRecord]].getOrElse {
+        throw new RuntimeException(s"Failed to parse JSON from body: ${bdy}")
+      }
     }
   }
 
   object Users {
 
-    def registrations: Future[List[Registration]] = fetch(RegistrationsKey).map { bdy =>
-      val sr = new StringReader(bdy)
-      try Registration.parseRecords(sr)
-      finally sr.close()
+    def registrations: Future[List[Registration]] =
+      fetch(RegistrationsKey).map { bdy =>
+        val sr = new StringReader(bdy)
+        try Registration.parseRecords(sr)
+        finally sr.close()
+      }
+
+    private def rawNicknames: Future[String] = fetch(NicknamesKey)
+
+    private def nicknames: Future[List[NicknameRecord]] = rawNicknames.map {
+      bdy =>
+        val sr = new StringReader(bdy)
+        try NicknameRecord.parseRecords(sr)
+        finally sr.close()
     }
 
-    def rawNicknames: Future[String] = fetch(NicknamesKey)
-
-    def nicknames: Future[List[NicknameRecord]] = rawNicknames.map { bdy =>
-      val sr = new StringReader(bdy)
-      try NicknameRecord.parseRecords(sr)
-      finally sr.close()
-    }
-
-    def users: Future[List[User]] = async {
-      val regs = await(registrations)
-      val nicks = await(nicknames)
-      regs.flatMap { reg => User.fromRegistration(reg, nicks) }
-    }
+    def users: Future[List[User]] =
+      cacheApi.getOrElseUpdate[List[User]](UsersKey) {
+        async {
+          val regs = await(registrations)
+          val nicks = await(nicknames)
+          regs.flatMap { reg =>
+            User.fromRegistration(reg, nicks)
+          }
+        }
+      }
 
   }
 
@@ -94,6 +119,8 @@ class ReferenceProvider @Inject()(configuration: Configuration,
 
   def servers: Future[List[ServerRecord]] = Servers.servers
 
+  override def clanNames: Future[Map[String, String]] =
+    clans.map(_.map(c => c.id -> c.name).toMap)
 }
 
 object ReferenceProvider {
@@ -101,4 +128,7 @@ object ReferenceProvider {
   val ServersKey = "servers"
   val RegistrationsKey = "registrations"
   val NicknamesKey = "nicknames"
+
+  val UsersKey = "users"
+
 }

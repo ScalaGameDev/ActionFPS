@@ -9,7 +9,7 @@ import com.maxmind.geoip.{LookupService, timeZone}
   * Created by me on 10/04/2016.
   */
 object GeoIpLookup extends IpLookup {
-  lazy val file = {
+  lazy val file: File = {
     val A = new File("resources/GeoLiteCityv6.dat")
     val B = new File("web/resources/GeoLiteCityv6.dat")
     val C = new File("../resources/GeoLiteCityv6.dat")
@@ -20,7 +20,8 @@ object GeoIpLookup extends IpLookup {
       (List(A, B, C, D, E) ++ F).filter(_.exists()).head
     } catch {
       case e: Throwable =>
-        throw new IllegalArgumentException(s"Coult not find GeoLiteCityv6.dat. Might want to set System property 'geolitecity.dat'")
+        throw new IllegalArgumentException(
+          s"Coult not find GeoLiteCityv6.dat. Might want to set System property 'geolitecity.dat'")
     }
   }
 
@@ -33,7 +34,8 @@ object GeoIpLookup extends IpLookup {
         IpLookup.IpLookupResult(
           countryCode = Option(loc.countryCode),
           countryName = Option(loc.countryName),
-          timezone = Option(timeZone.timeZoneByCountryAndRegion(loc.countryCode, loc.region))
+          timezone = Option(
+            timeZone.timeZoneByCountryAndRegion(loc.countryCode, loc.region))
         )
     }
   }

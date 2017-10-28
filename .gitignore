@@ -1,3 +1,4 @@
+/users/
 *.dmo
 *.raw
 *.log-bin.gz
@@ -70,3 +71,9 @@ cache.tmp
 serverlog_*
 geoip-resources
 test.db
+
+# benchmarking
+*.jfr
+
+.attach_*
+*.tmp

@@ -1,0 +1,10 @@
+@import com.actionfps.gameparser.enrichers.JsonGame
+@import views.rendergame.MixedGame
+@(jsonGame: JsonGame)
+<div id="game">
+@views.rendergame.Render.renderMixedGame(MixedGame.fromJsonGame(jsonGame))
+</div>
+
+<nav id="bottom-links">
+    <a href="https://github.com/ActionFPS/game-log-parser">View Game Parser Logic</a>
+</nav>

@@ -2,27 +2,36 @@ import org.openqa.selenium.WebDriver
 import org.scalatest.Inspectors._
 import org.scalatestplus.play._
 
+import scala.util.Try
+
 class IntegrationSpec
-  extends PlaySpec
-    with OneServerPerSuite
+    extends PlaySpec
+    with BaseOneServerPerSuite
+    with TheApplicationFactory
     with OneBrowserPerTest
     with HtmlUnitFactory {
 
   "Web" must {
     "Load up" in {
+      Try(go to root)
+      Try(go to root)
       go to root
     }
     "Contain some games, events and a clanwar in the index page" in {
       go to root
-      pageTitle mustBe "ActionFPS First Person Shooter"
+      withClue(s"$pageSource") {
+        pageTitle mustBe "ActionFPS First Person Shooter"
+      }
       withClue("Live events") {
         cssSelector("#live-events ol li").findAllElements mustNot be(empty)
       }
       withClue("Latest clanwar") {
-        cssSelector("#latest-clanwars .GameCard").findAllElements mustNot be(empty)
+        cssSelector("#latest-clanwars .GameCard").findAllElements mustNot be(
+          empty)
       }
       withClue("Existing games") {
-        cssSelector("#existing-games .GameCard").findAllElements mustNot be(empty)
+        cssSelector("#existing-games .GameCard").findAllElements mustNot be(
+          empty)
       }
     }
     "Navigate properly to an event" in {
@@ -75,21 +84,25 @@ class IntegrationSpec
     }
     "Aura 1999 is listed in Servers" in {
       go to s"$root/servers/"
-      forExactly(1, findAll(cssSelector("a[href='assaultcube://aura.woop.ac:1999']")).toList) { element =>
-        element.text mustEqual "aura.woop.ac 1999"
+      forExactly(1,
+                 findAll(cssSelector(
+                   "a[href='assaultcube://aura.woop.ac:1999']")).toList) {
+        element =>
+          element.text mustEqual "aura.woop.ac 1999"
       }
     }
     "Provide a master server" in {
       go to s"$root/retrieve.do?abc"
-      pageSource must include("1337")
+      pageSource must include("7654")
     }
     "Provide a master server /ms/" in {
       go to s"$root/ms/"
-      pageSource must include("1337")
+      pageSource must include("7654")
     }
   }
 
-  implicit override lazy val webDriver: WebDriver = HtmlUnitFactory.createWebDriver(false)
+  implicit override lazy val webDriver: WebDriver =
+    HtmlUnitFactory.createWebDriver(false)
 
   def root = s"""http://localhost:$port"""
 
