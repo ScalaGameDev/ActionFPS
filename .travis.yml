@@ -1,5 +1,5 @@
 language: scala
-# https://github.com/nativelibs4java/scalaxy-streams/commit/01ffbadeece7e2db8b21373fcdc25298845869d4
+# https://docs.travis-ci.com/user/reference/overview/
 sudo: false
 dist: trusty
 scala:
