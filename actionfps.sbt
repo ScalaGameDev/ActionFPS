@@ -154,6 +154,7 @@ lazy val web = project
     generateArchitectureDiagram := {
       val inputFile = (sourceDirectory in Assets).value / "plantuml" / "architecture.plantuml"
       val outputFile = (WebKeys.webTarget in Assets).value / "af-arch-plant.svg"
+      IO.createDirectory((WebKeys.webTarget in Assets).value)
       streams.value.log
         .info(s"Generating architecture diagram to ${outputFile}")
       renderPlantUMLToSVG(inputFile, outputFile)
