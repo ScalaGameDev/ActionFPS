@@ -155,7 +155,7 @@ object LogController {
       request.headers
         .get(JwtSession.REQUEST_HEADER_NAME)
         .exists(_.startsWith(JwtSession.TOKEN_PREFIX))
-    def signatureEmpty = request.jwtSession.signature.nonEmpty
+    def signatureEmpty = request.jwtSession.signature.isEmpty
     def claimValid = request.jwtSession.claim.isValid(IssuerName)
 
     if (!hasBearer) Right(LogAccess.default)
