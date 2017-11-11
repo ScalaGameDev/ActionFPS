@@ -60,7 +60,8 @@ lazy val root =
     webServers,
     game,
     gameLogParserApp,
-    gameLogParser
+    gameLogParser,
+    serverPinger
   )
 
 lazy val webLogServer = project
@@ -381,13 +382,13 @@ lazy val webServers =
     .dependsOn(referenceServers)
     .aggregate(referenceServers)
     .dependsOn(webTemplate)
+    .dependsOn(serverPinger)
     .settings(
       libraryDependencies ++= Seq(
         playIteratees,
         playIterateesStreams,
         async,
-        akkaAgent,
-        serverPinger
+        akkaAgent
       )
     )
 
@@ -453,6 +454,21 @@ lazy val gameLogParser =
     .dependsOn(game)
     .settings(
       libraryDependencies ++= Seq(jodaTime, jodaConvert, fastparse),
+      libraryDependencies += scalatest % Test
+    )
+
+lazy val ExtendedIntegrationTest = config("it") extend Test
+
+lazy val serverPinger =
+  Project(id = "server-pinger", base = file("server-pinger"))
+    .configs(ExtendedIntegrationTest)
+    .settings(Defaults.itSettings: _*)
+    .settings(
+      libraryDependencies ++= Seq(jodaTime,
+                                  jodaConvert,
+                                  commonsIO,
+                                  playJson,
+                                  akkaActor),
       libraryDependencies += scalatest % Test
     )
 
