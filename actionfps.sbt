@@ -457,7 +457,7 @@ lazy val gameLogParser =
       libraryDependencies += scalatest % Test
     )
 
-lazy val ExtendedIntegrationTest = config("it") extend Test
+lazy val ExtendedIntegrationTest = config("fun") extend Test
 
 lazy val serverPinger =
   Project(id = "server-pinger", base = file("server-pinger"))
