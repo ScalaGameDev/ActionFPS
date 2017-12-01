@@ -56,4 +56,7 @@ object Dependencies {
   val macwireUtil: ModuleID = "com.softwaremill.macwire" %% "util" % "2.3.0"
   val macwireProxy: ModuleID = "com.softwaremill.macwire" %% "proxy" % "2.3.0"
 
+  val jaxbApi: ModuleID = "javax.xml.bind" % "jaxb-api" % "2.3.0"
+
+
 }

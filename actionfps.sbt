@@ -358,7 +358,9 @@ lazy val playerUser = Project(
 ).settings(
   libraryDependencies += scalatest % Test,
   libraryDependencies += commonsCsv,
-  libraryDependencies += kantanCsv
+  libraryDependencies += kantanCsv,
+  // to use javax.xml.bind.DatatypeConverter in RegistrationEmail class on JDK9
+  libraryDependencies += jaxbApi
 )
 
 lazy val playerAchievements =
