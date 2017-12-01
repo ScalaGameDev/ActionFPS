@@ -1,4 +1,4 @@
-package providers.full
+package providers
 
 import java.time.YearMonth
 
@@ -16,12 +16,11 @@ import lib.ClanDataProvider
 
 import scala.concurrent.{ExecutionContext, Future}
 
-abstract class FullProvider()(implicit executionContext: ExecutionContext)
+final case class GameAxisAccumulatorInAgentFuture(
+    accumulatorFutureAgent: Future[Agent[GameAxisAccumulator]])(
+    implicit executionContext: ExecutionContext)
     extends ClanDataProvider
     with ProvidesGames {
-
-  protected[providers] def accumulatorFutureAgent
-    : Future[Agent[GameAxisAccumulator]]
 
   def getRecent(n: Int): Future[List[JsonGame]] =
     accumulatorFutureAgent.map(_.get().recentGames(n))

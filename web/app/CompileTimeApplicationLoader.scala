@@ -2,15 +2,18 @@ import java.nio.file.{Path, Paths}
 
 import af.inters.{DiscordInters, OneSignalInters}
 import akka.actor.ActorSystem
+import akka.agent.Agent
 import akka.stream.scaladsl.{Keep, Sink}
-import com.actionfps.accumulation.ReferenceMapValidator
 import com.actionfps.accumulation.user.GeoIpLookup
+import com.actionfps.accumulation.{GameAxisAccumulator, ReferenceMapValidator}
 import com.actionfps.gameparser.enrichers.{IpLookup, MapValidator}
+import com.hazelcast.client.HazelcastClient
 import com.softwaremill.macwire._
 import controllers.{
   Admin,
   AllGames,
   ClansController,
+  DevelopmentController,
   DownloadsController,
   EventStreamController,
   Forwarder,
@@ -27,7 +30,7 @@ import controllers.{
   VersionController
 }
 import inters.IntersController
-import lib.WebTemplateRender
+import lib.{HazelcastAgentCache, WebTemplateRender}
 import play.api.ApplicationLoader.Context
 import play.api.Configuration
 import play.api.cache.ehcache.EhCacheComponents
@@ -38,24 +41,20 @@ import play.api.mvc.EssentialFilter
 import play.filters.HttpFiltersComponents
 import play.filters.cors.CORSComponents
 import play.filters.gzip.GzipFilterComponents
-import providers.{ReferenceProvider, SubscribingActorSource}
-import providers.full.{
-  FullProvider,
-  FullProviderImpl,
-  HazelcastCachedProvider,
-  PlayersProviderImpl
-}
+import providers._
 import providers.games.GamesProvider
 import router.Routes
-import services.ChallongeService.NewClanwarCompleted
 import services._
 import tl.ChallongeClient
+
+import scala.concurrent.Future
 
 final class CompileTimeApplicationLoader extends play.api.ApplicationLoader {
   def load(context: Context): play.api.Application =
     new CompileTimeApplicationLoaderComponents(context).application
 }
 
+//noinspection ScalaUnusedSymbol
 final class CompileTimeApplicationLoaderComponents(context: Context)
     extends play.api.BuiltInComponentsFromContext(context)
     with HttpFiltersComponents
@@ -76,11 +75,12 @@ final class CompileTimeApplicationLoaderComponents(context: Context)
   lazy val webTemplateRender: WebTemplateRender = wire[WebTemplateRender]
   lazy val newsService: NewsService = wire[NewsService]
   lazy val allGames: AllGames = wire[AllGames]
-  lazy val playersProvider: PlayersProvider = wire[PlayersProviderImpl]
+  lazy val playersProvider: PlayersProvider = wire[GameAxisPlayersProvider]
   implicit lazy val referenceProvider: ReferenceProvider =
     new ReferenceProvider(configuration, defaultCacheApi)(wsClient,
                                                           executionContext)
-  lazy val gamesProvider: GamesProvider = wire[GamesProvider]
+  lazy val gamesProvider: GamesProvider = new GamesProvider(
+    Paths.get(configuration.get[String]("journal.games")))
   lazy val forwarder: Forwarder = wire[Forwarder]
   lazy val gamesController: GamesController = wire[GamesController]
   lazy val indexController: IndexController = wire[IndexController]
@@ -93,6 +93,8 @@ final class CompileTimeApplicationLoaderComponents(context: Context)
   lazy val admin: Admin = wire[Admin]
   lazy val versionController: VersionController = wire[VersionController]
   lazy val userController: UserController = wire[UserController]
+  lazy val developmentController: DevelopmentController =
+    wire[DevelopmentController]
   lazy val latestReleaseService: LatestReleaseService =
     wire[LatestReleaseService]
   lazy val downloadsController: DownloadsController = wire[DownloadsController]
@@ -103,12 +105,26 @@ final class CompileTimeApplicationLoaderComponents(context: Context)
     wire[MasterServerController]
   lazy val intersController: IntersController =
     wire[IntersController]
-  lazy val fullProvider: FullProvider = {
-    val fullProviderImpl = wire[FullProviderImpl]
-    if (useCached)
-      new HazelcastCachedProvider(fullProviderImpl)(executionContext)
-    else fullProviderImpl
+  private lazy val initialGameAxisAccumulator: Future[GameAxisAccumulator] = {
+    import scala.async.Async._
+    async {
+      GameAxisAccumulator.emptyWithUsers(users = await(referenceProvider.users),
+                                         clans = await(referenceProvider.clans))
+    }
   }
+  private lazy val newClanwarsSource = fullProvider.newClanwars
+  private lazy val newGamesSource = fullProvider.newGames
+  lazy val fullProvider: GameAxisAccumulatorProvider =
+    wire[GameAxisAccumulatorProvider]
+  lazy val fullAgent: Future[Agent[GameAxisAccumulator]] = {
+    if (useCached) {
+      val hz = HazelcastClient.newHazelcastClient()
+      HazelcastAgentCache.cachedAgent(hz)(
+        mapName = "stuff",
+        keyName = "fullIterator")(fullProvider.accumulatorFutureAgent)
+    } else fullProvider.accumulatorFutureAgent
+  }
+  private lazy val providesGames = GameAxisAccumulatorInAgentFuture(fullAgent)
   private lazy val useCached =
     configuration
       .getOptional[String]("full.provider")
@@ -124,17 +140,12 @@ final class CompileTimeApplicationLoaderComponents(context: Context)
     .filter(_.get[Boolean]("enabled"))
     .map(ChallongeClient.apply)
     .foreach { challongeClient =>
-      SubscribingActorSource[NewClanwarCompleted](10)
+      newClanwarsSource
         .via(ChallongeService.sinkFlow(challongeClient))
         .toMat(Sink.ignore)(Keep.right)
         .run()
         .onComplete(intersService.completionHandler)
     }
-
-  lazy val challongeClient: ChallongeClient = wire[ChallongeClient]
-  lazy val challongeEnabled: Boolean = configuration
-    .get[Seq[String]]("play.modules.enabled")
-    .contains("modules.ChallongeLoadModule")
 
   lazy val intersService: IntersService =
     new IntersService(

@@ -1,23 +1,20 @@
 package services
 
 import java.nio.file.Path
-import java.time.Instant
-import javax.inject._
 import javax.management.ObjectName
 
-import it.FileTailSourceAdditions._
-import af.inters.IntersFlow.{NicknameToUser, ScanIterators, TimeLeeway}
+import af.inters.IntersFlow.{NicknameToUser, ScanIterators}
 import akka.actor.ActorSystem
 import akka.agent.Agent
 import akka.stream.alpakka.file.scaladsl.FileTailSource
-import akka.stream.scaladsl.{Flow, Sink, Source}
+import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{ActorAttributes, ActorMaterializer, Supervision}
 import akka.{Done, NotUsed}
 import com.actionfps.inter.InterOut
 import com.actionfps.user.User
+import it.FileTailSourceAdditions._
 import monitoring.LinesMBeanMonitor
 import play.api.Logger
-import play.api.libs.ws.WSClient
 
 import scala.async.Async._
 import scala.concurrent.duration._
@@ -30,7 +27,6 @@ import scala.util.{Failure, Success, Try}
   *
   * Notify clients of an '!inter' message on a server by a registered user.
   */
-@Singleton
 class IntersService(journalPath: Path)(
     implicit usersF: () => Future[List[User]],
     executionContext: ExecutionContext,
@@ -86,37 +82,14 @@ class IntersService(journalPath: Path)(
       .mapConcat(_.interOut.toList)
   }
 
-  val pushToAgent: Sink[InterOut, Future[Done]] =
-    Sink.foreach[InterOut](interOut => agent.send(l => interOut :: l))
-
-  private val pushToLog =
-    Sink.foreach[InterOut] { i =>
-      logger.info(s"Found inter: ${i}")
-    }
-
-  private def filterRecent(interOut: InterOut): Boolean = {
-    interOut.userMessage.instant.plus(TimeLeeway).isAfter(Instant.now())
-  }
-
-  private val pushToActorSystem = Flow[InterOut]
-    .filter(filterRecent)
-    .to(Sink.foreach(actorSystem.eventStream.publish))
-
-  private val pushOutSink = Flow[InterOut]
-    .withAttributes(ActorAttributes.supervisionStrategy {
-      case NonFatal(e) =>
-        logger.error(s"Failed an element due to ${e}", e)
-        Supervision.Resume
-    })
-    .alsoTo(pushToAgent)
-    .alsoTo(pushToLog)
-    .alsoTo(pushToActorSystem)
-
   def beginPushing(): Unit = {
     logger.info(s"Tailing for inters from ${journalPath}...")
     intersSource("Main IntersService push")
-      .via(pushOutSink)
-      .runForeach(_ => ())
+      .runForeach(interOut => agent.send(l => interOut :: l))
+      .onComplete(completionHandler)
+
+    newIntersSource(s"Tailing inters to log from ${journalPath}...")
+      .runForeach(interOut => logger.info(s"Found inter: ${interOut}"))
       .onComplete(completionHandler)
   }
 

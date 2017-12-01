@@ -23,8 +23,6 @@ object IntersFlow {
     def empty: NicknameToUser = Function.const(None)
   }
 
-  val TimeLeeway: time.Duration = java.time.Duration.ofMinutes(3)
-
   val InterMessage = "!inter"
 
   case class UserMessageFromLine(nicknameToUser: NicknameToUser)(
@@ -55,7 +53,8 @@ object IntersFlow {
     def initial: IntersIterator = IntersIterator.empty
 
     def scanAsync(intersIterator: IntersIterator, line: String)(
-        implicit executionContext: ExecutionContext): Future[IntersIterator] = {
+        implicit executionContext: ExecutionContext)
+      : Future[IntersIterator] = {
       async {
         UserMessageFromLine(await(usersProvider()))
           .unapply(line)

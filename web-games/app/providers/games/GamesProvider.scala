@@ -2,7 +2,6 @@ package providers.games
 
 import java.nio.file.{Files, Path, Paths, StandardOpenOption}
 import java.time.Clock
-import javax.inject.{Inject, Singleton}
 
 import akka.NotUsed
 import akka.agent.Agent
@@ -19,15 +18,8 @@ import scala.async.Async._
 import scala.concurrent._
 import scala.concurrent.duration._
 
-@Singleton
 final class GamesProvider(gameJournalPath: Path)(
     implicit executionContext: ExecutionContext) {
-
-  @Inject
-  def this(configuration: Configuration)(
-      implicit executionContext: ExecutionContext) = this(
-    Paths.get(configuration.underlying.getString("journal.games"))
-  )
 
   Logger.info(s"Using game Journal: ${gameJournalPath}")
 
@@ -79,13 +71,13 @@ final class GamesProvider(gameJournalPath: Path)(
     }
   }
 
-  val journalLinesToGames: Flow[String, JsonGame, NotUsed] = Flow[String]
-    .scan(GameScanner.initial)(GameScanner.scan)
-    .collect(GameScanner.collect)
-
 }
 
 object GamesProvider {
+
+  val journalLinesToGames: Flow[String, JsonGame, NotUsed] = Flow[String]
+    .scan(GameScanner.initial)(GameScanner.scan)
+    .collect(GameScanner.collect)
 
   val NewRichGameBufferSize = 10
 

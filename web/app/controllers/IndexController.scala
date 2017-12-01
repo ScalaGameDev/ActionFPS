@@ -1,14 +1,13 @@
 package controllers
 
 import java.time.Instant
-import javax.inject._
 
 import com.actionfps.clans.ClanNamer
+import controllers.IndexController._
 import lib.{Clanner, WebTemplateRender}
 import play.api.Logger
 import play.api.mvc._
-import providers.ReferenceProvider
-import providers.full.FullProvider
+import providers.{GameAxisAccumulatorInAgentFuture, ReferenceProvider}
 import services.NewsService
 import views.clanwar.Clanwar.ClanIdToClan
 import views.ladder.Table.PlayerNamer
@@ -16,15 +15,13 @@ import views.rendergame.MixedGame
 
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
-import IndexController._
 
-@Singleton
-class IndexController @Inject()(webTemplateRender: WebTemplateRender,
-                                newsService: NewsService,
-                                referenceProvider: ReferenceProvider,
-                                fullProvider: FullProvider,
-                                ladderController: LadderController,
-                                components: ControllerComponents)(
+class IndexController(webTemplateRender: WebTemplateRender,
+                      newsService: NewsService,
+                      referenceProvider: ReferenceProvider,
+                      fullProvider: GameAxisAccumulatorInAgentFuture,
+                      ladderController: LadderController,
+                      components: ControllerComponents)(
     implicit executionContext: ExecutionContext)
     extends AbstractController(components) {
 

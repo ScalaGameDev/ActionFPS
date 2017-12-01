@@ -60,7 +60,8 @@ lazy val root =
     webServers,
     game,
     gameLogParserApp,
-    gameLogParser
+    gameLogParser,
+    serverPinger
   )
 
 lazy val webLogServer = project
@@ -150,7 +151,17 @@ lazy val web = project
     },
     version := "5.0",
     buildInfoPackage := "af",
-    buildInfoOptions += BuildInfoOption.ToJson
+    buildInfoOptions += BuildInfoOption.ToJson,
+    generateArchitectureDiagram := {
+      val inputFile = (sourceDirectory in Assets).value / "plantuml" / "architecture.plantuml"
+      val outputFile = (WebKeys.webTarget in Assets).value / "af-arch-plant.svg"
+      IO.createDirectory((WebKeys.webTarget in Assets).value)
+      streams.value.log
+        .info(s"Generating architecture diagram to ${outputFile}")
+      renderPlantUMLToSVG(inputFile, outputFile)
+    },
+    sourceGenerators in Assets +=
+      generateArchitectureDiagram.taskValue.map(Seq(_))
   )
 
 lazy val inMemoryCache = SettingKey[Boolean](
@@ -371,13 +382,13 @@ lazy val webServers =
     .dependsOn(referenceServers)
     .aggregate(referenceServers)
     .dependsOn(webTemplate)
+    .dependsOn(serverPinger)
     .settings(
       libraryDependencies ++= Seq(
         playIteratees,
         playIterateesStreams,
         async,
-        akkaAgent,
-        serverPinger
+        akkaAgent
       )
     )
 
@@ -445,3 +456,107 @@ lazy val gameLogParser =
       libraryDependencies ++= Seq(jodaTime, jodaConvert, fastparse),
       libraryDependencies += scalatest % Test
     )
+
+lazy val ExtendedIntegrationTest = config("fun") extend Test
+
+lazy val serverPinger =
+  Project(id = "server-pinger", base = file("server-pinger"))
+    .configs(ExtendedIntegrationTest)
+    .settings(Defaults.itSettings: _*)
+    .settings(
+      libraryDependencies ++= Seq(jodaTime,
+                                  jodaConvert,
+                                  commonsIO,
+                                  playJson,
+                                  akkaActor),
+      libraryDependencies += scalatest % Test
+    )
+
+import org.jetbrains.sbt.StructureKeys._
+sbtStructureOutputFile in Global := Some(target.value / "structure.xml")
+sbtStructureOptions in Global := "prettyPrint download"
+
+lazy val generateXmlStructure =
+  taskKey[File]("Generates project structure XML file")
+lazy val generateDotStructure =
+  taskKey[File]("Generates project structure DOT file")
+lazy val generateSvgStructure =
+  taskKey[File]("Generates project structure SVG file")
+lazy val generateArchitectureDiagram =
+  taskKey[File]("Generates project architecture SVG file")
+
+generateXmlStructure := {
+  val file = sbtStructureOutputFile.value.getOrElse {
+    sys.error(s"${sbtStructureOutputFile.key.label} is not set")
+  }
+  dumpStructure.value
+  file
+}
+
+generateDotStructure := {
+  val xmlFile = generateXmlStructure.value
+  val (name, ext) = IO.split(xmlFile.getName)
+  val dotFile = target.value / s"${name}.dot"
+  val styleFile = baseDirectory.value / "project/struct.xsl"
+  val args = Array(
+    s"-s:${xmlFile}",
+    s"-xsl:${styleFile}",
+    s"-o:${dotFile}"
+  )
+  net.sf.saxon.Transform.main(args)
+  dotFile
+}
+
+generateSvgStructure := {
+  import guru.nidi.graphviz.engine._
+
+  val dotFile = generateDotStructure.value
+  val (name, ext) = IO.split(dotFile.getName)
+  val svgFile = target.value / s"${name}.svg"
+
+  IO.withTemporaryFile("intermediate", ".svg") { tmp =>
+    Graphviz
+      .fromFile(dotFile)
+      .render(Format.SVG_STANDALONE)
+      .toFile(tmp)
+
+    val styleFile = baseDirectory.value / "project/add-underline.xsl"
+    val args = Array(
+      s"-s:${tmp}",
+      s"-xsl:${styleFile}",
+      s"-o:${svgFile}"
+    )
+    net.sf.saxon.Transform.main(args)
+  }
+
+  svgFile
+}
+
+def renderPlantUMLToSVG(
+    inputFile: File,
+    outputFile: File
+): File = {
+  import scala.util._
+  import java.io.IOException
+  import net.sourceforge.plantuml.{
+    FileFormat,
+    FileFormatOption,
+    SourceStringReader
+  }
+
+  val fos = new java.io.FileOutputStream(outputFile)
+  Try {
+    val reader = new SourceStringReader(IO.read(inputFile))
+    reader.generateImage(fos, new FileFormatOption(FileFormat.SVG))
+  } match {
+    case Failure(e) =>
+      sys.error(
+        s"Couldn't generate SVG diagram from ${inputFile}:\n${e.getMessage}")
+    case Success(null) =>
+      sys.error(
+        s"Couldn't generate SVG diagram from ${inputFile}: check the diagram source code")
+    case _ => ()
+  }
+  fos.close()
+  outputFile
+}

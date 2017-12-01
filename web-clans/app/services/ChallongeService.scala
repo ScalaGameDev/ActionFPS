@@ -12,21 +12,10 @@ import tl.{ChallongeClient, WinFlow}
 import scala.concurrent.ExecutionContext
 
 object ChallongeService {
-  val sampleClanwarWon = ClanwarWon(
-    clanwarId = "ABC",
-    winnerId = "noob",
-    winnerScore = 1,
-    loserId = "boon",
-    loserScore = 0
-  )
-
-  case class NewClanwarCompleted(clanwarCompleted: CompleteClanwar)
-
   def sinkFlow(challongeClient: ChallongeClient)(
       implicit executionContext: ExecutionContext)
-    : Flow[NewClanwarCompleted, Option[Int], NotUsed] = {
-    Flow[NewClanwarCompleted]
-      .map(_.clanwarCompleted)
+    : Flow[CompleteClanwar, Option[Int], NotUsed] = {
+    Flow[CompleteClanwar]
       .filter { clanwar =>
         // don't allow old clanwars to be committed
         // todo add a journal for clanwar persistence
@@ -39,7 +28,10 @@ object ChallongeService {
         cc
       }
       .mapConcat(cc => WinFlow.detectWinnerLoserClanwar(cc).toList)
-      .merge(Source.single(ChallongeService.sampleClanwarWon))
+      .map { wc =>
+        Logger.info(s"Received clanwar: ${wc}")
+        wc
+      }
       .via(WinFlow(challongeClient).clanwarWon)
       .alsoTo(Sink.foreach(item => Logger.info(s"Sunk clanwar: ${item}")))
   }
