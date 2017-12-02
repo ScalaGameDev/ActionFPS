@@ -473,7 +473,8 @@ lazy val serverPinger =
                                   commonsIO,
                                   playJson,
                                   akkaActor),
-      libraryDependencies += scalatest % Test
+      libraryDependencies += scalatest % Test,
+      libraryDependencies += jaxbApi
     )
 
 import org.jetbrains.sbt.StructureKeys._
