@@ -141,7 +141,7 @@ lazy val web = project
       if (inMemoryCache.value) Some("full.provider" -> "hazelcast-cached")
       else None
     }.toSeq,
-    PlayKeys.devSettings += "journal.large" -> util.Properties
+    PlayKeys.devSettings += "journal.large" -> scala.util.Properties
       .envOrElse("JOURNAL_LOGS_TSV", "journals/journal.tsv"),
     PlayKeys.devSettings += "journal.games" -> "journals/games.tsv",
     scriptClasspath := Seq("*", "../conf/"),
@@ -358,7 +358,9 @@ lazy val playerUser = Project(
 ).settings(
   libraryDependencies += scalatest % Test,
   libraryDependencies += commonsCsv,
-  libraryDependencies += kantanCsv
+  libraryDependencies += kantanCsv,
+  // to use javax.xml.bind.DatatypeConverter in RegistrationEmail class on JDK9
+  libraryDependencies += jaxbApi
 )
 
 lazy val playerAchievements =
@@ -457,7 +459,7 @@ lazy val gameLogParser =
       libraryDependencies += scalatest % Test
     )
 
-lazy val ExtendedIntegrationTest = config("it") extend Test
+lazy val ExtendedIntegrationTest = config("fun") extend Test
 
 lazy val serverPinger =
   Project(id = "server-pinger", base = file("server-pinger"))
