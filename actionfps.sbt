@@ -165,7 +165,9 @@ lazy val web = project
   )
 
 lazy val inMemoryCache = SettingKey[Boolean](
-  "Use an in-memory Hazelcast cache for increased iteration performance.")
+  label = "inMemoryCache",
+  description =
+    "Use an in-memory Hazelcast cache for increased iteration performance.")
 
 lazy val webInters =
   Project(
