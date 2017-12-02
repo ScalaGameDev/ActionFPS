@@ -18,6 +18,10 @@ scalacOptions in ThisBuild := Seq(
   "-target:jvm-1.8"
 )
 
+// https://docs.oracle.com/javase/9/tools/javac.htm
+// although unclear how release and target relate between each other.
+javacOptions in (Compile, compile) in ThisBuild ++= Seq("--release", "9", "-target", "9")
+
 sources in (Compile, doc) in ThisBuild := Seq.empty
 
 publishArtifact in (Compile, packageDoc) in ThisBuild := false
@@ -165,7 +169,9 @@ lazy val web = project
   )
 
 lazy val inMemoryCache = SettingKey[Boolean](
-  "Use an in-memory Hazelcast cache for increased iteration performance.")
+  label = "inMemoryCache",
+  description =
+    "Use an in-memory Hazelcast cache for increased iteration performance.")
 
 lazy val webInters =
   Project(
@@ -471,7 +477,8 @@ lazy val serverPinger =
                                   commonsIO,
                                   playJson,
                                   akkaActor),
-      libraryDependencies += scalatest % Test
+      libraryDependencies += scalatest % Test,
+      libraryDependencies += jaxbApi
     )
 
 import org.jetbrains.sbt.StructureKeys._
