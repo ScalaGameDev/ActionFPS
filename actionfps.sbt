@@ -18,6 +18,10 @@ scalacOptions in ThisBuild := Seq(
   "-target:jvm-1.8"
 )
 
+// https://docs.oracle.com/javase/9/tools/javac.htm
+// although unclear how release and target relate between each other.
+javacOptions in (Compile, compile) in ThisBuild ++= Seq("--release", "9", "-target", "9")
+
 sources in (Compile, doc) in ThisBuild := Seq.empty
 
 publishArtifact in (Compile, packageDoc) in ThisBuild := false
