@@ -9,7 +9,7 @@ object Dependencies {
   val commonsIO: ModuleID = "commons-io" % "commons-io" % "2.6"
   val kantanCsv: ModuleID = "com.nrinaudo" %% "kantan.csv-generic" % "0.3.1"
   val jsoup: ModuleID = "org.jsoup" % "jsoup" % "1.11.2"
-  val hazelcastClient: ModuleID = "com.hazelcast" % "hazelcast-client" % "3.9.1"
+  val hazelcastClient: ModuleID = "com.hazelcast" % "hazelcast-client" % "3.9.2"
   val fluentHc: ModuleID = "org.apache.httpcomponents" % "fluent-hc" % "4.5.4"
   val httpClientCache
     : ModuleID = "org.apache.httpcomponents" % "httpclient-cache" % "4.5.4"
