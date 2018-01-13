@@ -21,7 +21,7 @@ object Dependencies {
   val scalatestPlus
     : ModuleID = "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.2"
   val alpakkaFile
-    : ModuleID = "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.15.1"
+    : ModuleID = "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.16"
   val seleniumJava
     : ModuleID = "org.seleniumhq.selenium" % "selenium-java" % "3.8.1"
   val seleniumHtmlUnit
@@ -35,7 +35,7 @@ object Dependencies {
   val akkaTestkit: ModuleID = akka("testkit")
 
   private def akka(stuff: String) =
-    "com.typesafe.akka" %% s"akka-$stuff" % "2.5.8"
+    "com.typesafe.akka" %% s"akka-$stuff" % "2.5.9"
 
   val akkaStreamTestkit: ModuleID = akka("stream-testkit")
 
