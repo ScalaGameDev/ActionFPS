@@ -23,7 +23,7 @@ object Dependencies {
   val alpakkaFile
     : ModuleID = "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.16"
   val seleniumJava
-    : ModuleID = "org.seleniumhq.selenium" % "selenium-java" % "3.9.0"
+    : ModuleID = "org.seleniumhq.selenium" % "selenium-java" % "3.9.1"
   val seleniumHtmlUnit
     : ModuleID = "org.seleniumhq.selenium" % "selenium-htmlunit-driver" % "2.52.0"
 
